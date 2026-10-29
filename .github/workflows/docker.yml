@@ -17,11 +17,16 @@ permissions:
 
 env:
   IMAGE: ghcr.io/${{ github.repository }}
+  # In-org registry, reachable from the in-org runner without login.
+  TROLLIT_IMAGE: registry.trollit.tech/hyper-proxy
 
 jobs:
   image:
     name: Image
-    runs-on: ubuntu-latest
+    # Pull requests from forks are skipped so untrusted code never runs on the in-org runner.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on:
+      - default
     steps:
       - name: Check out code
         uses: actions/checkout@v7
@@ -31,6 +36,9 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
+        with:
+          # Use the runner's network so BuildKit resolves and reaches the in-org registry.
+          driver-opts: network=host
 
       - name: Login to GitHub Container Registry
         if: github.event_name != 'pull_request'
@@ -44,7 +52,9 @@ jobs:
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ${{ env.IMAGE }}
+          images: |
+            ${{ env.IMAGE }}
+            ${{ env.TROLLIT_IMAGE }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
