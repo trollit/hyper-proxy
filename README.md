@@ -103,7 +103,7 @@ Responses carry a `Data-Source` header: `websocket`, `cache`, `stale-cache`, `up
 
 ## 🐳 Docker images
 
-Every push to `main` and every `v*` tag builds a multi-arch (`linux/amd64`, `linux/arm64`) image and pushes it to `ghcr.io/trollit/hyper-proxy`. Tags: `latest` and `main` (from `main`), `sha-<short>`, and `<version>` / `<major>.<minor>` for releases. Release binaries are built by GoReleaser.
+Every push to `main` and every `v*` tag builds a multi-arch (`linux/amd64`, `linux/arm64`) image and pushes it to `ghcr.io/trollit/hyper-proxy` and `registry.trollit.tech/hyper-proxy`. Tags: `latest` and `main` (from `main`), `sha-<short>`, and `<version>` / `<major>.<minor>` for releases. Release binaries are built by GoReleaser.
 
 To build locally: `docker build -t hyper-proxy .`
 
