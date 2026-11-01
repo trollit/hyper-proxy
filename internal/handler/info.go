@@ -48,6 +48,17 @@ func (h *Handler) info(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+	case service.InfoFundingHistory:
+		if req.StartTime != nil {
+			end := time.Now().UnixMilli()
+			if req.EndTime != nil {
+				end = *req.EndTime
+			}
+			if data, ok := h.srv.FundingHistory(r.Context(), req.Coin, *req.StartTime, end); ok {
+				writeJSON(w, "cache", http.StatusOK, data)
+				return
+			}
+		}
 	default:
 		if ttl, ok := h.srv.InfoTTL(req.Type); ok {
 			h.cachedInfo(w, r, body, &req, ttl)

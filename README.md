@@ -53,6 +53,7 @@ All Hyperliquid market data is requested with `POST /info` and a `type` in the J
 | `allMids` | websocket `allMids` | Default dex only. Closed after 2 minutes without requests. |
 | `meta`, `spotMeta`, `perpDexs` | REST, TTL cache | Cached for `--meta-ttl` (60s). |
 | `metaAndAssetCtxs`, `spotMetaAndAssetCtxs` | REST, TTL cache | Cached for `--asset-ctx-ttl` (5s). These back ccxt's `fetch_markets` and `fetch_tickers`. |
+| `fundingHistory` | REST, series cache | Kept per coin as one series that is refreshed after each hourly funding time, so any `startTime` is answered from cache (ccxt derives it from the current time). Freqtrade uses this to calculate funding fees. Ranges longer than 5000 hours, such as backtest downloads, are forwarded. Dropped after 2 hours without requests. |
 
 Everything else, including all user-specific info requests and `/exchange`, is **forwarded** 1:1 to the upstream API.
 
@@ -79,6 +80,7 @@ Responses carry a `Data-Source` header: `websocket`, `cache`, `stale-cache`, `up
     "websocket": { "connected": true, "subscriptions": 42 },
     "feeds": { "candle": 40, "l2Book": 1, "allMids": 1, "failed": 0 },
     "info_cache_entries": 3,
+    "funding_series": 5,
     "rate_limit": { "weight_per_minute": 1200, "weight_available": 1104 }
   },
   "config": { "fake_candles_enabled": true, "always_show_forwards": false }
