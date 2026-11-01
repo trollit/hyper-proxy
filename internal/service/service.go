@@ -38,6 +38,7 @@ type Service struct {
 	Upstream  *Upstream
 	ws        *WSManager
 	infoCache *InfoCache
+	funding   *FundingCache
 
 	mu    sync.Mutex
 	feeds map[Subscription]*feedEntry
@@ -50,6 +51,7 @@ func NewService(ctx context.Context, logger *slog.Logger, up *Upstream, cfg Conf
 		Upstream:  up,
 		ws:        NewWSManager(up.WebsocketURL(), logger),
 		infoCache: NewInfoCache(up),
+		funding:   NewFundingCache(up),
 		feeds:     make(map[Subscription]*feedEntry),
 	}
 	s.ctx, s.cancel = context.WithCancel(ctx)
@@ -75,6 +77,7 @@ func (s *Service) expireLoop() {
 		case now := <-t.C:
 			s.removeExpired(now)
 			s.infoCache.Purge(now)
+			s.funding.Purge(now)
 		}
 	}
 }
@@ -168,6 +171,14 @@ func (s *Service) CachedInfo(ctx context.Context, body []byte, weight int, ttl t
 	return s.infoCache.Get(ctx, body, weight, ttl)
 }
 
+// FundingHistory returns the cached funding history of coin with start <= time <= end.
+func (s *Service) FundingHistory(ctx context.Context, coin string, start, end int64) ([]byte, bool) {
+	if coin == "" {
+		return nil, false
+	}
+	return s.funding.Get(ctx, coin, start, end)
+}
+
 // Stats summarizes the state of the caches for the status endpoint.
 func (s *Service) Stats() map[string]any {
 	counts := map[string]int{}
@@ -194,6 +205,7 @@ func (s *Service) Stats() map[string]any {
 			"failed":    failed,
 		},
 		"info_cache_entries": s.infoCache.Len(),
+		"funding_series":     s.funding.Len(),
 		"rate_limit": map[string]any{
 			"weight_per_minute": weightPerMinute,
 			"weight_available":  RateAvailable(),

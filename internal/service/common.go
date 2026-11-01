@@ -41,6 +41,10 @@ type InfoRequest struct {
 	NSigFigs json.RawMessage `json:"nSigFigs,omitempty"`
 	Mantissa json.RawMessage `json:"mantissa,omitempty"`
 	Req      json.RawMessage `json:"req,omitempty"`
+
+	// StartTime and EndTime bound fundingHistory requests.
+	StartTime *int64 `json:"startTime,omitempty"`
+	EndTime   *int64 `json:"endTime,omitempty"`
 }
 
 // CandleRequest is the "req" object of a candleSnapshot info request.

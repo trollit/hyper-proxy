@@ -24,9 +24,34 @@ func InfoWeight(r *InfoRequest) int {
 	case "candleSnapshot":
 		// Additional weight per 60 candles returned.
 		return 20 + estimateCandles(r)/60
+	case InfoFundingHistory:
+		return fundingWeight(estimateFundings(r))
 	default:
 		return 20
 	}
+}
+
+// fundingWeight returns the weight of a fundingHistory request returning n entries:
+// additional weight per 20 items returned.
+func fundingWeight(n int) int {
+	return 20 + n/20
+}
+
+func estimateFundings(r *InfoRequest) int {
+	if r.StartTime == nil {
+		return fundingPageSize
+	}
+
+	end := nowMillis()
+	if r.EndTime != nil && *r.EndTime < end {
+		end = *r.EndTime
+	}
+	if end < *r.StartTime {
+		return 0
+	}
+
+	n := (end-*r.StartTime)/fundingInterval.Milliseconds() + 1
+	return int(min(n, fundingPageSize))
 }
 
 func estimateCandles(r *InfoRequest) int {
