@@ -43,6 +43,8 @@ linters:
             - github.com/jessevdk/go-flags
             - golang.org/x/time/rate
             - golang.org/x/sync/singleflight
+            - go.opentelemetry.io/otel
+            - go.opentelemetry.io/contrib
     godot:
       scope: toplevel
       exclude:

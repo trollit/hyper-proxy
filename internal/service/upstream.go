@@ -9,6 +9,9 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 // ErrBanned is returned when requests are suspended because the upstream rate limited us.
@@ -27,12 +30,12 @@ type Upstream struct {
 	BaseURL     string
 	BanDetector *BanDetector
 
-	transport *http.Transport
+	transport http.RoundTripper
 	client    *http.Client
 }
 
 func NewUpstream(baseURL string, bd *BanDetector) *Upstream {
-	transport := &http.Transport{
+	pooled := &http.Transport{
 		Proxy:               http.ProxyFromEnvironment,
 		MaxIdleConns:        200,
 		MaxIdleConnsPerHost: 50,
@@ -41,6 +44,8 @@ func NewUpstream(baseURL string, bd *BanDetector) *Upstream {
 		TLSHandshakeTimeout: 10 * time.Second,
 		ForceAttemptHTTP2:   true,
 	}
+	// Record client spans and metrics, but don't send trace context headers to Hyperliquid.
+	transport := otelhttp.NewTransport(pooled, otelhttp.WithPropagators(propagation.NewCompositeTextMapPropagator()))
 
 	return &Upstream{
 		BaseURL:     strings.TrimSuffix(baseURL, "/"),

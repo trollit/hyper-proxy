@@ -1,12 +1,16 @@
 package service
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 )
 
 // BanDetector tracks whether Hyperliquid is currently rate limiting us and until when to back off.
@@ -66,13 +70,13 @@ func (bd *BanDetector) CheckResponse(resp *http.Response, err error) bool {
 			if banUntil.IsZero() {
 				banUntil = now.Add(1 * time.Minute)
 			}
-			bd.setBanned(banUntil)
+			bd.setBanned(banUntil, "rate_limited")
 			bd.backoffCount = 0
 			bd.logger.Warn("API rate limited (429), suspending requests", "banUntil", banUntil)
 			return true
 		case http.StatusForbidden:
 			banUntil := now.Add(5 * time.Minute)
-			bd.setBanned(banUntil)
+			bd.setBanned(banUntil, "forbidden")
 			bd.logger.Warn("API access forbidden (403), suspending requests", "banUntil", banUntil)
 			return true
 		case http.StatusOK:
@@ -92,7 +96,7 @@ func (bd *BanDetector) CheckResponse(resp *http.Response, err error) bool {
 		// If too many errors in short time, use exponential backoff
 		if bd.errorCount >= 5 {
 			backoff := bd.nextBackoff()
-			bd.setBanned(now.Add(backoff))
+			bd.setBanned(now.Add(backoff), "connection_errors")
 			bd.logger.Warn("API connection issues detected, suspending requests", "errorCount", bd.errorCount, "backoffDuration", backoff, "banUntil", bd.recoveryTime)
 			bd.errorCount = 0
 			return true
@@ -102,9 +106,10 @@ func (bd *BanDetector) CheckResponse(resp *http.Response, err error) bool {
 	return false
 }
 
-func (bd *BanDetector) setBanned(until time.Time) {
+func (bd *BanDetector) setBanned(until time.Time, reason string) {
 	bd.banned = true
 	bd.recoveryTime = until
+	bans.Add(context.Background(), 1, metric.WithAttributes(attribute.String("reason", reason)))
 }
 
 // nextBackoff returns 2^n seconds, capped at 10 minutes.

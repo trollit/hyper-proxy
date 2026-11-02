@@ -16,21 +16,27 @@ const (
 )
 
 // info handles POST /info, the single endpoint for all Hyperliquid market data.
-func (h *Handler) info(w http.ResponseWriter, r *http.Request) {
+// It returns the info request type for metrics.
+func (h *Handler) info(w http.ResponseWriter, r *http.Request) string {
 	body, ok := readBody(w, r)
 	if !ok {
-		return
+		return ""
 	}
 
 	var req service.InfoRequest
 	if r.Method != http.MethodPost || json.Unmarshal(body, &req) != nil {
 		h.forward(w, r, body, 20)
-		return
+		return ""
 	}
 
+	h.serveInfo(w, r, body, &req)
+	return req.Type
+}
+
+func (h *Handler) serveInfo(w http.ResponseWriter, r *http.Request, body []byte, req *service.InfoRequest) {
 	switch req.Type {
 	case "candleSnapshot":
-		if h.candleSnapshot(w, r, &req) {
+		if h.candleSnapshot(w, r, req) {
 			return
 		}
 	case service.FeedL2Book:
@@ -61,12 +67,12 @@ func (h *Handler) info(w http.ResponseWriter, r *http.Request) {
 		}
 	default:
 		if ttl, ok := h.srv.InfoTTL(req.Type); ok {
-			h.cachedInfo(w, r, body, &req, ttl)
+			h.cachedInfo(w, r, body, req, ttl)
 			return
 		}
 	}
 
-	h.forward(w, r, body, service.InfoWeight(&req))
+	h.forward(w, r, body, service.InfoWeight(req))
 }
 
 func (h *Handler) cachedInfo(w http.ResponseWriter, r *http.Request, body []byte, req *service.InfoRequest, ttl time.Duration) {

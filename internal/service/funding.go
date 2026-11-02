@@ -76,7 +76,11 @@ func (c *FundingCache) Get(ctx context.Context, coin string, start, end int64) (
 			// Don't let one canceled client abort the fetch shared with others.
 			fetchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 60*time.Second)
 			defer cancel()
-			return nil, c.fill(fetchCtx, coin, start)
+			err := c.fill(fetchCtx, coin, start)
+			if !errors.Is(err, errFundingRange) {
+				fundingFills.Add(fetchCtx, 1, resultAttr(err))
+			}
+			return nil, err
 		})
 
 		select {
