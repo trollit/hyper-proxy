@@ -103,6 +103,34 @@ Responses carry a `Data-Source` header: `websocket`, `cache`, `stale-cache`, `up
 | `--asset-ctx-ttl` | `HPX_ASSET_CTX_TTL` | TTL for `metaAndAssetCtxs`, `spotMetaAndAssetCtxs` (`0` disables) | `5s` |
 | `-a` | `HPX_ALWAYS_SHOW_FORWARDS` | Log every forwarded request even without `-v` | `false` |
 
+## 🔭 OpenTelemetry
+
+Traces and metrics are configured with the standard [OpenTelemetry environment variables](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/). Nothing is exported unless an exporter or OTLP endpoint is set.
+
+```bash
+# OTLP to a collector (traces and metrics)
+OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318 hyper-proxy
+
+# Prometheus scrape endpoint on :9464/metrics
+OTEL_METRICS_EXPORTER=prometheus OTEL_EXPORTER_PROMETHEUS_HOST=0.0.0.0 hyper-proxy
+```
+
+`OTEL_TRACES_EXPORTER` and `OTEL_METRICS_EXPORTER` accept `otlp`, `console` and `none` (metrics also `prometheus`). `OTEL_SERVICE_NAME` defaults to `hyper-proxy`.
+
+Server and upstream requests are traced. Trace context from clients is honoured, but never sent on to Hyperliquid. Besides the standard `http.server.*` and `http.client.*` metrics, the proxy reports:
+
+| Metric | Attributes | Description |
+|--------|------------|-------------|
+| `hyperproxy.request.duration` | `endpoint`, `info.type`, `source` | Request duration; `source` is the `Data-Source` header, so this gives cache hit rates per request type |
+| `hyperproxy.ratelimit.weight` | | Weight spent on upstream requests |
+| `hyperproxy.ratelimit.wait.duration` | `result` | Time spent waiting for rate limit weight |
+| `hyperproxy.ratelimit.available` | | Weight currently available |
+| `hyperproxy.upstream.banned` / `hyperproxy.upstream.bans` | `reason` | Backoff state and how often it was entered (`rate_limited`, `forbidden`, `connection_errors`) |
+| `hyperproxy.websocket.connected` / `.subscriptions` / `.connects` / `.messages` | `result`, `channel` | Websocket state, reconnects and message rates |
+| `hyperproxy.feeds` | `type`, `state` | Websocket backed feeds |
+| `hyperproxy.cache.entries` | `cache` | Entries in the info and funding caches |
+| `hyperproxy.funding.fills` | `result` | Funding history fills from upstream |
+
 ## 🐳 Docker images
 
 Every push to `main` and every `v*` tag builds a multi-arch (`linux/amd64`, `linux/arm64`) image and pushes it to `ghcr.io/trollit/hyper-proxy` and `registry.trollit.tech/hyper-proxy`. Tags: `latest` and `main` (from `main`), `sha-<short>`, and `<version>` / `<major>.<minor>` for releases. Release binaries are built by GoReleaser.

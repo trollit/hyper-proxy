@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	"golang.org/x/time/rate"
 
 	"github.com/trollit/hyper-proxy/internal/tool"
@@ -93,6 +95,7 @@ func (m *WSManager) Run(ctx context.Context) {
 		if resp != nil && resp.Body != nil {
 			resp.Body.Close()
 		}
+		wsConnects.Add(ctx, 1, resultAttr(err))
 		if err != nil {
 			if ctx.Err() == nil {
 				m.logger.Error("websocket connection failed", "url", m.url, "error", err)
@@ -263,6 +266,14 @@ func (m *WSManager) dispatch(msg []byte) {
 		m.logger.Warn("websocket message could not be decoded", "error", err)
 		return
 	}
+
+	channel := env.Channel
+	switch channel {
+	case "pong", "subscriptionResponse", "error", FeedCandle, FeedL2Book, FeedAllMids:
+	default:
+		channel = "other"
+	}
+	wsMessages.Add(context.Background(), 1, metric.WithAttributes(attribute.String("channel", channel)))
 
 	switch env.Channel {
 	case "pong", "subscriptionResponse":

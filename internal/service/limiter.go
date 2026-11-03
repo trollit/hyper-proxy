@@ -96,7 +96,15 @@ func ExchangeWeight(body []byte) int {
 
 // RateWait blocks until the given weight is available in the shared IP budget.
 func RateWait(ctx context.Context, weight int) error {
-	return Limiter.WaitN(ctx, min(max(weight, 1), weightPerMinute))
+	weight = min(max(weight, 1), weightPerMinute)
+
+	start := time.Now()
+	err := Limiter.WaitN(ctx, weight)
+	rateWait.Record(ctx, time.Since(start).Seconds(), resultAttr(err))
+	if err == nil {
+		rateWeight.Add(ctx, int64(weight))
+	}
+	return err
 }
 
 // RateAvailable returns the currently available weight.

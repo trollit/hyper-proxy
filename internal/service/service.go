@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"sync"
 	"time"
+
+	"go.opentelemetry.io/otel/metric"
 )
 
 // Config controls what the service caches.
@@ -42,6 +44,8 @@ type Service struct {
 
 	mu    sync.Mutex
 	feeds map[Subscription]*feedEntry
+
+	gauges metric.Registration
 }
 
 func NewService(ctx context.Context, logger *slog.Logger, up *Upstream, cfg Config) *Service {
@@ -55,6 +59,10 @@ func NewService(ctx context.Context, logger *slog.Logger, up *Upstream, cfg Conf
 		feeds:     make(map[Subscription]*feedEntry),
 	}
 	s.ctx, s.cancel = context.WithCancel(ctx)
+	var err error
+	if s.gauges, err = s.registerGauges(); err != nil {
+		logger.Warn("metrics could not be registered", "error", err)
+	}
 
 	go s.ws.Run(s.ctx)
 	go s.expireLoop()
@@ -64,6 +72,9 @@ func NewService(ctx context.Context, logger *slog.Logger, up *Upstream, cfg Conf
 
 func (s *Service) Stop() {
 	s.cancel()
+	if s.gauges != nil {
+		_ = s.gauges.Unregister()
+	}
 }
 
 func (s *Service) expireLoop() {

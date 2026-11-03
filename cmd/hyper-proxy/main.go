@@ -13,11 +13,23 @@ import (
 	"time"
 
 	"github.com/jessevdk/go-flags"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/trollit/hyper-proxy/internal/handler"
 	"github.com/trollit/hyper-proxy/internal/logcache"
 	"github.com/trollit/hyper-proxy/internal/service"
+	"github.com/trollit/hyper-proxy/internal/telemetry"
 )
+
+// spanName names server spans after the endpoint; client supplied paths would make names unbounded.
+func spanName(_ string, r *http.Request) string {
+	switch r.URL.Path {
+	case "/info", "/exchange", "/status", "/restart":
+		return r.Method + " " + r.URL.Path
+	default:
+		return r.Method
+	}
+}
 
 const testnetURL = "https://api.hyperliquid-testnet.xyz"
 
@@ -99,6 +111,18 @@ func main() {
 }
 
 func run(ctx context.Context, stop context.CancelFunc, logger *slog.Logger, config Config) error {
+	shutdownTelemetry, err := telemetry.Setup(ctx, Version)
+	if err != nil {
+		return fmt.Errorf("telemetry setup: %w", err)
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := shutdownTelemetry(shutdownCtx); err != nil {
+			logger.Warn("telemetry shutdown failed", "error", err)
+		}
+	}()
+
 	up := service.NewUpstream(config.Upstream, service.NewBanDetector(logger))
 	srv := service.NewService(ctx, logger, up, service.Config{
 		CandleCacheSize: config.CandleCacheSize,
@@ -118,7 +142,7 @@ func run(ctx context.Context, stop context.CancelFunc, logger *slog.Logger, conf
 	// Create an HTTP server with a custom ErrorLog that suppresses repeated lines
 	server := &http.Server{
 		Addr:              fmt.Sprintf(":%d", config.Port),
-		Handler:           h,
+		Handler:           otelhttp.NewHandler(h, "hyper-proxy", otelhttp.WithSpanNameFormatter(spanName)),
 		ReadTimeout:       30 * time.Second,
 		ReadHeaderTimeout: 10 * time.Second,
 		WriteTimeout:      75 * time.Second,

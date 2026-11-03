@@ -77,13 +77,18 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	service.GetStatusTracker().RecordRequest()
 
+	var infoType string
+	defer func() {
+		requestDuration.Record(r.Context(), time.Since(start).Seconds(), requestAttrs(r.URL.Path, infoType, w.Header().Get("Data-Source")))
+	}()
+
 	switch r.URL.Path {
 	case "/status":
 		h.status(w)
 	case "/restart":
 		h.restartHandler(w, r)
 	case "/info":
-		h.info(w, r)
+		infoType = h.info(w, r)
 	default:
 		body, ok := readBody(w, r)
 		if !ok {
